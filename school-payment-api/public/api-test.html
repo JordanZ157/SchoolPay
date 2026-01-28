@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - School Payment System</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; background: #1a1a2e; color: #eee; }
+        h1 { color: #00d9ff; text-align: center; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .test-card { background: #16213e; border-radius: 12px; padding: 20px; border: 1px solid #0f3460; }
+        .test-card h3 { margin-top: 0; color: #e94560; }
+        .test-card button { background: #e94560; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin: 5px; }
+        .test-card button:hover { background: #ff6b6b; }
+        .test-card button.success { background: #10b981; }
+        .result { background: #0f0f23; padding: 15px; border-radius: 8px; margin-top: 15px; white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 300px; overflow: auto; }
+        .status { padding: 5px 10px; border-radius: 4px; display: inline-block; margin-left: 10px; }
+        .status.success { background: #10b981; }
+        .status.error { background: #ef4444; }
+        .status.pending { background: #f59e0b; }
+        #token-display { background: #0f3460; padding: 15px; border-radius: 8px; margin-bottom: 20px; word-break: break-all; }
+        .summary { background: #16213e; padding: 20px; border-radius: 12px; margin-top: 20px; border: 1px solid #0f3460; }
+        .summary h2 { color: #00d9ff; margin-top: 0; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+        .summary-item { padding: 10px; background: #0f3460; border-radius: 6px; text-align: center; }
+        .summary-item.pass { border-left: 4px solid #10b981; }
+        .summary-item.fail { border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 School Payment System - API Test Suite</h1>
+        
+        <div id="token-display">
+            <strong>Current Token:</strong> <span id="current-token">Not logged in</span>
+            <br><strong>Logged in as:</strong> <span id="current-user">-</span>
+        </div>
+
+        <div class="test-grid">
+            <!-- Auth Tests -->
+            <div class="test-card">
+                <h3>🔐 Authentication Tests</h3>
+                <button onclick="testLogin('admin@school.com', 'password', 'Admin')">Login Admin</button>
+                <button onclick="testLogin('bendahara@school.com', 'password', 'Bendahara')">Login Bendahara</button>
+                <button onclick="testLogin('walikelas@school.com', 'password', 'Wali Kelas')">Login Wali Kelas</button>
+                <button onclick="testLogin('siswa1@school.com', 'password', 'Siswa')">Login Siswa</button>
+                <button onclick="testLogin('orangtua1@school.com', 'password', 'Orang Tua')">Login Orang Tua</button>
+                <button onclick="testMe()">Get Current User</button>
+                <button onclick="testLogout()">Logout</button>
+                <div class="result" id="auth-result">Click a button to test...</div>
+            </div>
+
+            <!-- Invoice Tests -->
+            <div class="test-card">
+                <h3>📄 Invoice Tests</h3>
+                <button onclick="testGetInvoices()">Get All Invoices</button>
+                <button onclick="testGetInvoices('unpaid')">Get Unpaid Invoices</button>
+                <button onclick="testGetInvoices('paid')">Get Paid Invoices</button>
+                <button onclick="testGetInvoiceDetail()">Get Invoice Detail (ID: 1)</button>
+                <div class="result" id="invoice-result">Login first, then click a button...</div>
+            </div>
+
+            <!-- Student Tests (Admin Only) -->
+            <div class="test-card">
+                <h3>👨‍🎓 Student Tests (Admin Only)</h3>
+                <button onclick="testGetStudents()">Get All Students</button>
+                <div class="result" id="student-result">Login as admin first...</div>
+            </div>
+
+            <!-- Fee Category Tests (Admin Only) -->
+            <div class="test-card">
+                <h3>💰 Fee Category Tests (Admin Only)</h3>
+                <button onclick="testGetFeeCategories()">Get All Categories</button>
+                <div class="result" id="category-result">Login as admin first...</div>
+            </div>
+
+            <!-- Report Tests (Admin Only) -->
+            <div class="test-card">
+                <h3>📊 Report Tests (Admin Only)</h3>
+                <button onclick="testDailyReport()">Daily Report</button>
+                <button onclick="testArrearsReport()">Arrears Report</button>
+                <div class="result" id="report-result">Login as admin first...</div>
+            </div>
+
+            <!-- Chatbot Tests -->
+            <div class="test-card">
+                <h3>🤖 Chatbot Tests</h3>
+                <button onclick="testChatbot('cek tunggakan')">Cek Tunggakan</button>
+                <button onclick="testChatbot('tagihan bulan ini')">Tagihan Bulan Ini</button>
+                <button onclick="testChatbot('halo')">Say Hello</button>
+                <button onclick="testChatHistory()">Get Chat History</button>
+                <div class="result" id="chatbot-result">Login first, then click a button...</div>
+            </div>
+        </div>
+
+        <div class="summary">
+            <h2>📋 Test Summary</h2>
+            <div class="summary-grid" id="test-summary">
+                <div class="summary-item">Run tests to see summary</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000/api';
+        let token = null;
+        let testResults = {};
+
+        function updateToken(newToken, userName) {
+            token = newToken;
+            document.getElementById('current-token').textContent = token ? token.substring(0, 50) + '...' : 'Not logged in';
+            document.getElementById('current-user').textContent = userName || '-';
+        }
+
+        function showResult(elementId, data, isError = false) {
+            const el = document.getElementById(elementId);
+            el.textContent = JSON.stringify(data, null, 2);
+            el.style.borderLeft = isError ? '3px solid #ef4444' : '3px solid #10b981';
+        }
+
+        function updateSummary() {
+            const grid = document.getElementById('test-summary');
+            grid.innerHTML = '';
+            Object.entries(testResults).forEach(([name, passed]) => {
+                const div = document.createElement('div');
+                div.className = `summary-item ${passed ? 'pass' : 'fail'}`;
+                div.textContent = `${passed ? '✅' : '❌'} ${name}`;
+                grid.appendChild(div);
+            });
+        }
+
+        async function testLogin(email, password, role) {
+            try {
+                const res = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ email, password, device_name: 'api-test' })
+                });
+                const data = await res.json();
+                if (data.success && data.data.token) {
+                    updateToken(data.data.token, data.data.user.name + ' (' + role + ')');
+                    testResults[`Login ${role}`] = true;
+                } else {
+                    testResults[`Login ${role}`] = false;
+                }
+                showResult('auth-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('auth-result', { error: e.message }, true);
+                testResults[`Login ${role}`] = false;
+                updateSummary();
+            }
+        }
+
+        async function testMe() {
+            try {
+                const res = await fetch(`${API_URL}/me`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Get Me'] = data.success;
+                showResult('auth-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('auth-result', { error: e.message }, true);
+            }
+        }
+
+        async function testLogout() {
+            try {
+                const res = await fetch(`${API_URL}/logout`, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                updateToken(null, null);
+                showResult('auth-result', data);
+            } catch (e) {
+                showResult('auth-result', { error: e.message }, true);
+            }
+        }
+
+        async function testGetInvoices(status = null) {
+            try {
+                let url = `${API_URL}/invoices`;
+                if (status) url += `?status=${status}`;
+                const res = await fetch(url, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults[`Get Invoices ${status || 'All'}`] = data.success;
+                showResult('invoice-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('invoice-result', { error: e.message }, true);
+            }
+        }
+
+        async function testGetInvoiceDetail() {
+            try {
+                const res = await fetch(`${API_URL}/invoices/1`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Get Invoice Detail'] = data.success;
+                showResult('invoice-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('invoice-result', { error: e.message }, true);
+            }
+        }
+
+        async function testGetStudents() {
+            try {
+                const res = await fetch(`${API_URL}/students`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Get Students'] = data.success;
+                showResult('student-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('student-result', { error: e.message }, true);
+            }
+        }
+
+        async function testGetFeeCategories() {
+            try {
+                const res = await fetch(`${API_URL}/fee-categories`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Get Fee Categories'] = data.success;
+                showResult('category-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('category-result', { error: e.message }, true);
+            }
+        }
+
+        async function testDailyReport() {
+            try {
+                const res = await fetch(`${API_URL}/reports/daily`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Daily Report'] = data.success;
+                showResult('report-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('report-result', { error: e.message }, true);
+            }
+        }
+
+        async function testArrearsReport() {
+            try {
+                const res = await fetch(`${API_URL}/reports/arrears`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Arrears Report'] = data.success;
+                showResult('report-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('report-result', { error: e.message }, true);
+            }
+        }
+
+        async function testChatbot(message) {
+            try {
+                const res = await fetch(`${API_URL}/chatbot/message`, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json', 
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ message })
+                });
+                const data = await res.json();
+                testResults['Chatbot: ' + message] = data.success;
+                showResult('chatbot-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('chatbot-result', { error: e.message }, true);
+            }
+        }
+
+        async function testChatHistory() {
+            try {
+                const res = await fetch(`${API_URL}/chatbot/history`, {
+                    headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                testResults['Chat History'] = data.success;
+                showResult('chatbot-result', data, !data.success);
+                updateSummary();
+            } catch (e) {
+                showResult('chatbot-result', { error: e.message }, true);
+            }
+        }
+    </script>
+</body>
+</html>
