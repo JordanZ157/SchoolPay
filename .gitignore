@@ -1,0 +1,8 @@
+# Folder yang tidak perlu diupload
+.agent/
+IMPLEMENTASI PLAN.docx
+~$PLEMENTASI PLAN.docx
+
+# OS files
+.DS_Store
+Thumbs.db
